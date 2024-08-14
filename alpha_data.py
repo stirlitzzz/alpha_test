@@ -110,43 +110,47 @@ class YahooDataConverter:
             date_range=pd.date_range(start=period_start,end=period_end)
             df=pd.DataFrame(index=date_range)
 
-from utils import Alpha
-from utils import save_pickle, load_pickle
-period_start = datetime(2010,1,1, tzinfo=pytz.utc)
-period_end = datetime.now(pytz.utc)
+if __name__ == "__main__":
+    main()
+
+def main():
+    from utils import Alpha
+    from utils import save_pickle, load_pickle
+    period_start = datetime(2010,1,1, tzinfo=pytz.utc)
+    period_end = datetime.now(pytz.utc)
 
 
 
-import pdb
-#pdb.set_trace()
-tickers, ticker_dfs = get_ticker_dfs(start=period_start,end=period_end)
-#ticker_dfs2=ReAlpha.create_sim_data_df_panel(tickers,period_start,period_end,ticker_dfs)
-#input(f'tickers_dfs["close_filled"]: {ticker_dfs2["close_filled"]}')
-testfor = 20
-tickers = tickers[:testfor]
-input(f'tickers: {tickers}')
+    import pdb
+    #pdb.set_trace()
+    tickers, ticker_dfs = get_ticker_dfs(start=period_start,end=period_end)
+    #ticker_dfs2=ReAlpha.create_sim_data_df_panel(tickers,period_start,period_end,ticker_dfs)
+    #input(f'tickers_dfs["close_filled"]: {ticker_dfs2["close_filled"]}')
+    testfor = 20
+    tickers = tickers[:testfor]
+    input(f'tickers: {tickers}')
 
-df_dict=YahooDataConverter.convert_to_data_frames(tickers,ticker_dfs,period_start,period_end)
-ticker_dfs2=ReAlpha.create_sim_data_df_panel(tickers,period_start,period_end,df_dict)
-portfolio_df=ReAlpha.init_portfolio_settings(pd.date_range(start=period_start,end=period_end))
-input(f'portfolio_df: {portfolio_df}')
-df_signal_dist=ReAlpha.compute_signal_distribution(ticker_dfs2,tickers)
+    df_dict=YahooDataConverter.convert_to_data_frames(tickers,ticker_dfs,period_start,period_end)
+    ticker_dfs2=ReAlpha.create_sim_data_df_panel(tickers,period_start,period_end,df_dict)
+    portfolio_df=ReAlpha.init_portfolio_settings(pd.date_range(start=period_start,end=period_end))
+    input(f'portfolio_df: {portfolio_df}')
+    df_signal_dist=ReAlpha.compute_signal_distribution(ticker_dfs2,tickers)
 
-ReAlpha.compute_daily_pnl(ticker_dfs2,tickers,portfolio_df,portfolio_df)
-with pd.ExcelWriter('output.xlsx', engine='xlsxwriter') as writer:
-    # Iterate through the dictionary and write each DataFrame to a separate sheet
-    for sheet_name, df in df_dict.items():
-        #df.index
-        df=YahooDataConverter.make_timezone_naive(df)
-        df.to_excel(writer, sheet_name=sheet_name, index=True)
-#input(f'df: {df}')
+    ReAlpha.compute_daily_pnl(ticker_dfs2,tickers,portfolio_df,portfolio_df)
+    with pd.ExcelWriter('output.xlsx', engine='xlsxwriter') as writer:
+        # Iterate through the dictionary and write each DataFrame to a separate sheet
+        for sheet_name, df in df_dict.items():
+            #df.index
+            df=YahooDataConverter.make_timezone_naive(df)
+            df.to_excel(writer, sheet_name=sheet_name, index=True)
+    #input(f'df: {df}')
 
-"""
-from alpha1 import Alpha1
-from alpha2 import Alpha2
-from alpha3 import Alpha3
+    """
+    from alpha1 import Alpha1
+    from alpha2 import Alpha2
+    from alpha3 import Alpha3
 
-alpha1 = Alpha1(insts=tickers,dfs=ticker_dfs,start=period_start,end=period_end)
-alpha2 = Alpha2(insts=tickers,dfs=ticker_dfs,start=period_start,end=period_end)
-alpha3 = Alpha3(insts=tickers,dfs=ticker_dfs,start=period_start,end=period_end)
-"""
+    alpha1 = Alpha1(insts=tickers,dfs=ticker_dfs,start=period_start,end=period_end)
+    alpha2 = Alpha2(insts=tickers,dfs=ticker_dfs,start=period_start,end=period_end)
+    alpha3 = Alpha3(insts=tickers,dfs=ticker_dfs,start=period_start,end=period_end)
+    """

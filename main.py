@@ -79,12 +79,40 @@ def get_ticker_dfs(start,end):
 
 from utils import Alpha
 from utils import save_pickle, load_pickle
+from copy import deepcopy
 period_start = datetime(2010,1,1, tzinfo=pytz.utc)
 period_end = datetime.now(pytz.utc)
 tickers, ticker_dfs = get_ticker_dfs(start=period_start,end=period_end)
 testfor = 20
 tickers = tickers[:testfor]
+from utils import ReAlpha, ReAlpha1
+from alpha_data import YahooDataConverter
+trade_dates = pd.date_range(start=period_start,end=period_end,freq="d")
+#need to change the following code to filter for the date range
+df_dict=YahooDataConverter.convert_to_data_frames(tickers,ticker_dfs,period_start,period_end)
+df_port=ReAlpha.init_portfolio_settings(trade_range=trade_dates)
 
+df_dict=ReAlpha1.compute_meta_info(period_start,period_end,df_dict)
+(forecasts,forecast_chips)=ReAlpha.compute_signal_distribution(df_dict,tickers)
+input(f'df_port: {df_port}')
+input(f'forecasts: {forecasts}')
+weights=forecasts.div(forecast_chips,axis=0)
+weights.fillna(0,inplace=True)
+weights.reset_index(inplace=True)
+weights.rename(columns={"index":"datetime"},inplace=True)
+input(f'weights: {weights}')
+(portfolio_df, positions_out)=ReAlpha.compute_daily_pnl(df_dict,tickers,df_port,weights)
+dict_out=deepcopy(df_dict)
+dict_out["weights"]=weights
+dict_out["positions_out"]=positions_out
+dict_out["portfolio"]=portfolio_df
+dict_out["forecasts"]=forecasts
+#dict_out["op4"]=df_dict["op4"]
+
+from utils import output_dict_as_xlsx
+output_dict_as_xlsx(dict_out,"output2.xlsx")
+
+"""
 from alpha1 import Alpha1
 from alpha2 import Alpha2
 from alpha3 import Alpha3
@@ -127,4 +155,4 @@ plot_vol(nzr(df1))
 plot_vol(nzr(df2))
 plot_vol(nzr(df3))
 print(nzr(df1).std()*np.sqrt(253),nzr(df2).std()*np.sqrt(253),nzr(df3).std()*np.sqrt(253))
-
+"""

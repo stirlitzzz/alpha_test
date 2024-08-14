@@ -161,34 +161,19 @@ class ReAlpha():
         return dfs_out
    
     @staticmethod
-    def create_sim_data_df_panel(insts,start,end,dfs):
+    def compute_meta_info(start,end,dfs):
         trade_range=pd.date_range(start=start,end=end,freq='D')
         df=pd.DataFrame(index=trade_range)
         dfs_out=deepcopy(dfs)
-        dfs_out["close_filled"]=dfs_out["close"].fillna(method="ffill").fillna(method="bfill")
-        dfs_out["ret"]=dfs_out["close_filled"].diff()/dfs_out["close_filled"].shift(1)
-        dfs_out["vol"]=dfs_out["ret"].rolling(30).std()*np.sqrt(253)*np.sqrt(30/(30-dfs_out["close"].isna().rolling(30).sum()))
-        import pdb
-        #pdb.set_trace()
+        dfs_out["close_raw"]=dfs_out["close"]
 
-        dfs_out["eligible"]=pd.DataFrame(np.where(dfs_out["close"].isna(),0,1)&np.where(dfs_out["close_filled"]>0,1,0),index=dfs_out["close_filled"].index,columns=dfs_out["close_filled"].columns)
+        dfs_out["close"]=dfs_out["close_raw"].fillna(method="ffill").fillna(method="bfill")
+        dfs_out["ret"]=dfs_out["close_raw"].diff()/dfs_out["close_raw"].shift(1)
+        dfs_out["vol"]=dfs_out["ret"].rolling(30).std()*np.sqrt(253)*np.sqrt(30/(30-dfs_out["close_raw"].isna().rolling(30).sum()))
 
-        input(f'dfs_out["eligible"]={dfs_out["eligible"]}')
-        """
-        for inst in insts:
-            inst_vol = (-1 + dfs[inst]["close"]/dfs[inst]["close"].shift(1)).rolling(30).std()
-            dfs_out[inst] = df.join(dfs[inst]).fillna(method="ffill").fillna(method="bfill")
-            #dfs_out has weekends and holidays filled in
-            dfs_out[inst]["ret"] = -1 + dfs_out[inst]["close"]/dfs_out[inst]["close"].shift(1)
-            dfs_out[inst]["vol"] = inst_vol
-            dfs_out[inst]["vol"] = dfs_out[inst]["vol"].fillna(method="ffill").fillna(0)       
-            dfs_out[inst]["vol"] = np.where(dfs_out[inst]["vol"] < 0.005, 0.005, dfs_out[inst]["vol"])
-            sampled = dfs_out[inst]["close"] != dfs_out[inst]["close"].shift(1).fillna(method="bfill")
-            eligible = sampled.rolling(5).apply(lambda x: int(np.any(x))).fillna(0)
-            dfs_out[inst]["eligible"] = eligible.astype(int) & (dfs_out[inst]["close"] > 0).astype(int)
-        """
-
+        dfs_out["eligible"]=pd.DataFrame(np.where(dfs_out["close_raw"].isna(),0,1)&np.where(dfs_out["close"]>0,1,0),index=dfs_out["close"].index,columns=dfs_out["close"].columns)
         return dfs_out  
+
     @staticmethod
     def compute_signal_distribution(dfs,insts):
         alpha_scores = {}
@@ -235,10 +220,16 @@ class ReAlpha():
         portfolio_df.at[0,"leverage"]=portfolio_df.at[0,"nominal"]/portfolio_df.at[0,"capital"]#will probably need to be removed
         df_closes=mkt_data_dict["close"]
         df_rets=mkt_data_dict["ret"]
+        #input(f'df_closes: {df_closes}')
+        trade_dates_df=portfolio_df[["datetime"]]
+        trade_dates_df.set_index("datetime",inplace=True)
+        df_closes=trade_dates_df.join(df_closes)
+        df_rets=trade_dates_df.join(df_rets)
+        #input(f'df_closes: {df_closes}')
         np_close=df_closes.to_numpy()
         np_rets=df_rets.to_numpy()
         np_weights=df_weights.iloc[:,1:].to_numpy()
-        input(f'np_weights: {np_weights}')
+        #input(f'np_weights: {np_weights}')
         #leverage should be equal to sum of weights?
         #nominal return is 
         #np_positions=positions.iloc[:,1:].to_numpy()
@@ -366,31 +357,24 @@ def main():
     trade_dates=pd.date_range(start=start,end=end,freq="d")
     #the index column is numbers and there is a separate datetime column
     #presumably that will make it easier to work with different trading frequencies
-    port_positions=create_random_positions(tickers,trade_dates)
-    #input(f'port_positions: {port_positions}')
-    #create weights for each position, for each date
-    #w[date,ticker]=position[date,ticker]/sum(abs(position[date,:]))
-    port_weights=deepcopy(port_positions)
 
-
-    #input(f'port_positions:{port_positions}')
     closes=create_synthetic_closes(tickers,trade_dates)
+    dict_data={"close":closes}
+    df_data=ReAlpha.compute_meta_info(start,end,dict_data)
 
     
     #input(f'closes: {closes}')
-    #input(f'port_positions: {port_positions}')
-    df_port=ReAlpha.init_portfolio_settings(trade_range=port_positions.datetime)
-    #input(f'df_port: {df_port}')
-    df_data={"close":closes}
-    df_data["ret"]=df_data["close"].diff()/df_data["close"].shift(1)
-    df_data["eligible"]=pd.DataFrame(data=np.ones((len(trade_dates),len(tickers))), columns=tickers,index=trade_dates)
+    df_port=ReAlpha.init_portfolio_settings(trade_range=trade_dates)
+
     (forecasts,forecast_chips)=ReAlpha.compute_signal_distribution(df_data,tickers)
+
     weights=forecasts.div(forecast_chips,axis=0)
     weights.reset_index(inplace=True)
     weights.rename(columns={"index":"datetime"},inplace=True)
     input(f'forecasts: {forecasts}')
 
     (portfolio_df, positions_out)=ReAlpha.compute_daily_pnl(df_data,tickers,df_port,weights)
+
     input(f'portfolio_df: {portfolio_df}')
     input(f'positions_out: {positions_out}')
     dict_out=deepcopy(df_data)
@@ -402,6 +386,38 @@ def main():
     ###dict_out["forecast_chips"]=forecast_chips
    
     output_dict_as_xlsx(dict_out,"output1.xlsx")
+
+class ReAlpha1(Alpha):
+    @staticmethod
+    def compute_meta_info(start,end,dfs):
+        return ReAlpha.compute_meta_info(start,end,dfs)
+    
+    @staticmethod
+    def compute_meta_info(start,end,dfs):
+        dict_out= ReAlpha.compute_meta_info(start,end,dfs)
+        dict_out["low_raw"]=dict_out["low"]
+        dict_out["high_raw"]=dict_out["high"]
+        dict_out["volume_raw"]=dict_out["volume"]
+
+        dict_out["low"]=dict_out["low"].fillna(method="ffill").fillna(method="bfill")
+        dict_out["high"]=dict_out["high"].fillna(method="ffill").fillna(method="bfill")
+        dict_out["volume"]=dict_out["volume"].fillna(method="ffill").fillna(method="bfill")
+
+        dict_out["op1"]=dict_out["volume"]
+        dict_out["op2"]=(dict_out["close"]-dict_out["low"])-(dict_out["high"]-dict_out["close"])
+        dict_out["op3"]=dict_out["high"]-dict_out["low"]
+        dict_out["op4"]=dict_out["op1"]*dict_out["op2"]/dict_out["op3"]
+        dict_out["op4"]=dict_out["op4"].replace(np.inf,0).replace(-np.inf,0)
+        zscore=lambda x: (x-np.mean(x))/np.std(x)
+        cszcre_df=dict_out["op4"].fillna(method="ffill").apply(zscore,axis=1)
+        dict_out["zscore"]=cszcre_df
+        dict_out["alpha"]=cszcre_df.rolling(12).mean()*-1
+        dict_out["eligible"]=dict_out["eligible"]&(~pd.isna(dict_out["alpha"]))
+        return dict_out
+
+
+
+
 
 if __name__ == "__main__":
     main()
